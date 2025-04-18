@@ -3,7 +3,7 @@ library(tidymodels)
 
 # Assuming df_raw is already loaded from the previous script
 # Create df_imputed with explicit zero imputation for specified columns
-df_imputed <- df_raw |>
+df_imputed <- df_locs_raw |>
   mutate(
     across(
       .cols = c(

@@ -11,7 +11,7 @@ set.seed(123)
 # If not loaded, run the data processing script (process_deal_criteria.R)
 
 # Prepare data: select relevant columns and check for missing target
-df_model <- df_raw |>
+df_model <- df_mod |>
   select(
     acq_stage_gs_lkup,
     breeze_brand,

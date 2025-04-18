@@ -17,8 +17,9 @@ dt_spec <- decision_tree(
 # Create a workflow
 dt_workflow <- workflow() |>
   add_model(dt_spec) |>
-  add_formula(outcome ~ breeze_brand + crw_tnl_wpd_gs_lkup + ibacw_wpd + 
-                fcw_wpd + ecw_wpd + sscw_wpd + lof_cpd + lube_bays + repair_bays)
+  add_formula(outcome ~ breeze_brand + crw_tnl_wpd + ibacw_wpd + 
+                fcw_wpd + ecw_wpd + sscw_wpd + lof_cpd + lube_bays + repair_bays +
+                x2024_estimate_5_mi + nearest_streetlight_day_part_aadt_5_mi)
 
 # Define a grid for tuning
 dt_grid <- grid_regular(
