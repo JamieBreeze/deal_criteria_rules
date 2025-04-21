@@ -21,3 +21,6 @@ df_mod <- df_imputed |>
 
 # Inspect the result
 glimpse(df_mod)
+
+# Optionally save the result
+write_csv(df_mod, file.path(data_dir, "df_mod.csv"))

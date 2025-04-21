@@ -1,9 +1,13 @@
 library(tidyverse)
 library(tidymodels)
+library(rpart)
 library(rpart.plot)
 
 # Set seed for reproducibility
 set.seed(123)
+
+# Load data (assuming df_mod.csv is in the working directory)
+# df_mod <- read_csv("df_mod.csv")
 
 # Define the decision tree model specification
 dt_spec <- decision_tree(
@@ -42,11 +46,15 @@ dt_tune <- tune_grid(
   dt_workflow,
   resamples = cv_folds,
   grid = dt_grid,
-  metrics = metric_set(accuracy, roc_auc)
+  metrics = metric_set(accuracy, roc_auc, sens, spec)
 )
 
-# Select the best model
+# Select the best model based on accuracy
 best_dt <- select_best(dt_tune, metric = "accuracy")
+
+# Show best hyperparameters
+print("Best Hyperparameters:")
+print(best_dt)
 
 # Finalize the workflow with the best parameters
 final_dt_workflow <- finalize_workflow(dt_workflow, best_dt)
@@ -55,35 +63,72 @@ final_dt_workflow <- finalize_workflow(dt_workflow, best_dt)
 final_dt_fit <- final_dt_workflow |>
   fit(data = train_data)
 
-# Extract the rpart model for visualization
+# Extract the rpart model
 rpart_model <- final_dt_fit |> 
   extract_fit_engine()
 
-# Visualize the decision tree with 14-point font and number of observations
+# Enhanced visualization of the decision tree
+png("decision_tree_plot.png", width = 1200, height = 800, res = 100)
 rpart.plot(
   rpart_model, 
   roundint = FALSE, 
-  type = 4, 
-  extra = 101,  # Displays the number of observations at each node
-  cex = 0.70,  # Sets font size to 12 points (12/12 = 1.000)
-  box.palette = "auto",
-  branch.lty = 3,
-  shadow.col = "gray"
+  type = 4,           # Show splits and probabilities
+  extra = 104,       # Show probability of class and number of observations
+  cex = 0.9,         # Larger font size for readability
+  box.palette = list("Blues", "Reds"), # Color for pass/acquire
+  branch.lty = 1,    # Solid branches
+  shadow.col = "gray80",
+  main = "Decision Tree for M&A Outcome",
+  fallen.leaves = TRUE, # Place terminal nodes at the bottom
+  tweak = 1.2        # Adjust text spacing
 )
+dev.off()
 
-# Evaluate on test data
+# Evaluate on test data with detailed metrics
 test_results <- final_dt_fit |>
   predict(new_data = test_data) |>
   bind_cols(test_data) |>
   metrics(truth = outcome, estimate = .pred_class)
 
-# View test set performance
-test_results
+# Confusion matrix
+conf_mat <- final_dt_fit |>
+  predict(new_data = test_data) |>
+  bind_cols(test_data) |>
+  conf_mat(truth = outcome, estimate = .pred_class)
 
-# Extract and analyze
-rpart.rules(rpart_model, style = "tall")
-rpart_model$variable.importance
+# Additional metrics: precision, recall
+precision <- final_dt_fit |>
+  predict(new_data = test_data) |>
+  bind_cols(test_data) |>
+  precision(truth = outcome, estimate = .pred_class, event_level = "first")
+
+recall <- final_dt_fit |>
+  predict(new_data = test_data) |>
+  bind_cols(test_data) |>
+  recall(truth = outcome, estimate = .pred_class, event_level = "first")
+
+# Print results
+cat("\nTest Set Performance:\n")
+print(test_results)
+cat("\nConfusion Matrix:\n")
+print(conf_mat)
+cat("\nPrecision (for acquire):\n")
+print(precision)
+cat("\nRecall (for acquire):\n")
+print(recall)
+
+# Variable importance
+cat("\nVariable Importance:\n")
+print(rpart_model$variable.importance)
+
+# Extract decision rules
+cat("\nDecision Rules:\n")
+rpart_rules <- rpart.rules(rpart_model, style = "tall", roundint = FALSE)
+print(rpart_rules)
+
+# Complexity parameter table
+cat("\nComplexity Parameter Table:\n")
 print(rpart_model$cptable)
 
-# Optional: Save the final model
-saveRDS(final_dt_fit, "decision_tree_model.rds")
+# Save the final model
+saveRDS(final_dt_fit, "decision_tree_model_enhanced.rds")
