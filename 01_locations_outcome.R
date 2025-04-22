@@ -26,13 +26,14 @@ locations_details <- read_csv(file.path(data_dir, "locations_detail_2025-04-16.c
   rename(acq_stage = acq_stage_gs_lkup)
 
 # Read and clean locations_batch
-locations_batch <- read_csv(file.path(data_dir, "locations_batch_sitewise_data_2025-04-17.csv")) |>
-  clean_names(case = "snake")
+locations_batch <- readRDS("~/Documents/GitHub/deal_criteria_rules/data/data_all_batches_combined_2025-04-21.rds") |>
+  clean_names(case = "snake") |> 
+  rename(location_id = row_id)
 
 # Left join to create locations tibble
 locations_processed <- locations_parent |>
   left_join(locations_batch, 
-            by = c("location_city_name" = "location_city_name_input_data", "street_number" = "street_number_input_data"),
+            by = c("location_id"),
             multiple = "first") |> 
   left_join(locations_details, by = "location_id") |>
   # Calculate total_vpd as sum of columns ending in cpd or wpd
@@ -50,7 +51,7 @@ locations_processed <- locations_parent |>
       acq_stage %in% c("19 Post Close", "20 Closed", "21 Closed by Brick") ~ "acquire",
       TRUE ~ NA_character_
     )
-  ) |> 
+  ) |>
   relocate(outcome, .after = location_id) |> 
   mutate(outcome = as_factor(outcome)) 
   
@@ -73,34 +74,44 @@ df_locs_raw <- locations_processed |>
     repair_bays,
     lof_cpd,
     sscw_wpd,
-    ecw_wpd,
-    fcw_wpd,
     ibacw_wpd,
     crw_tnl_wpd = crw_tnl_wpd_gs_lkup,
-    lat_sj,
-    latitude_input_data_x,
-    long_sj,
-    longitude_input_data_x,
-    number_miles_to_closest_oc_loc_sj,
-    brand_sub_format,
+    latitude_input_data,
+    longitude_input_data,
+    # number_miles_to_closest_oc_loc_sj,
+    # brand_sub_format,
     opportunity_name = opportunity_name.x,
     opportunity_id,
     traffic,
     sitewise_batch,
     acq_stage,
-    co_located_w_lube,
-    co_located_w_car_wash,
-    co_located_w_repair,
-    nearest_streetlight_day_part_aadt_5_mi,
-    x2024_estimate_5_mi,
-    x2029_projection_5_mi,
+    # co_located_w_car_wash,
+    # co_located_w_repair,
+    traffic = nearest_streetlight_day_part_aadt_5_mi,
+    pop_2024 = col_2024_estimate_5_mi,
+    pop_2029 = col_2029_projection_5_mi,
+    direct_chains = count_of_chainxy_vt_oil_and_lube_5_mi,
+    indirect_chains = count_of_chainxy_vt_tires_and_auto_service_5_mi,
+    oci = count_of_oil_changers_locations_vt_open_5_mi,
     state_abb,
     city,
     street_number,
     city_state,
     zcta_code
   ) |> 
+  mutate(pop2shop = pop_2024 / direct_chains) |>
   filter(!is.na(outcome))
+
+# Temporary data cleanup
+df_locs_raw <- df_locs_raw |> 
+  # Replace all NA for breeze_brand column to "OC"
+  mutate(breeze_brand = replace_na(breeze_brand, "OC")) |>
+  # Replace any elements for traffic column <2000 with 2000
+  mutate(traffic = ifelse(traffic < 2000, 2000, traffic)) |> 
+  # Filter out placeholder records that contain "fake"
+  filter(!str_detect(location_city_name, "Fake")) |> 
+  # If direct_chains is 0, then pop2shop is equal to pop_2024; round to integer
+  mutate(pop2shop = ifelse(direct_chains == 0, round(pop_2024), pop2shop))
 
 # Optionally save the result
 write_csv(df_locs_raw, file.path(data_dir, "df_locs_raw.csv"))

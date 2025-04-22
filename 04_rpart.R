@@ -21,9 +21,10 @@ dt_spec <- decision_tree(
 # Create a workflow
 dt_workflow <- workflow() |>
   add_model(dt_spec) |>
-  add_formula(outcome ~ breeze_brand + crw_tnl_wpd + ibacw_wpd + 
-                fcw_wpd + ecw_wpd + sscw_wpd + lof_cpd + lube_bays + repair_bays +
-                x2024_estimate_5_mi + nearest_streetlight_day_part_aadt_5_mi)
+  add_formula(outcome ~ breeze_brand + lof_cpd +ibacw_wpd + sscw_wpd +
+                crw_tnl_wpd + 
+                lube_bays + repair_bays +
+                pop_2024 + traffic + pop2shop)
 
 # Define a grid for tuning
 dt_grid <- grid_regular(
@@ -50,7 +51,7 @@ dt_tune <- tune_grid(
 )
 
 # Select the best model based on accuracy
-best_dt <- select_best(dt_tune, metric = "accuracy")
+best_dt <- select_best(dt_tune, metric = "roc_auc")
 
 # Show best hyperparameters
 print("Best Hyperparameters:")
@@ -72,15 +73,20 @@ png("decision_tree_plot.png", width = 1200, height = 800, res = 100)
 rpart.plot(
   rpart_model, 
   roundint = FALSE, 
-  type = 4,           # Show splits and probabilities
-  extra = 104,       # Show probability of class and number of observations
-  cex = 0.9,         # Larger font size for readability
+  clip.right.labs = FALSE, # Avoid clipping labels
+  yesno = 2,       # Show yes/no labels
+  under = TRUE,    # Place labels under the nodes
+  type = 1,           # Show splits and probabilities
+  extra = 100,       # Show probability of class and number of observations
+  cex = 0.7,         # Larger font size for readability
   box.palette = list("Blues", "Reds"), # Color for pass/acquire
   branch.lty = 1,    # Solid branches
   shadow.col = "gray80",
   main = "Decision Tree for M&A Outcome",
   fallen.leaves = TRUE, # Place terminal nodes at the bottom
-  tweak = 1.2        # Adjust text spacing
+  tweak = 1,        # Adjust text spacing
+  branch = 0.1, # Adjust branch width
+  ycompress = FALSE # Compress y-axis
 )
 dev.off()
 
@@ -123,7 +129,7 @@ print(rpart_model$variable.importance)
 
 # Extract decision rules
 cat("\nDecision Rules:\n")
-rpart_rules <- rpart.rules(rpart_model, style = "tall", roundint = FALSE)
+rpart_rules <- rpart.rules(rpart_model, style = "tall", roundint = FALSE, cover = TRUE)
 print(rpart_rules)
 
 # Complexity parameter table
@@ -132,3 +138,4 @@ print(rpart_model$cptable)
 
 # Save the final model
 saveRDS(final_dt_fit, "decision_tree_model_enhanced.rds")
+

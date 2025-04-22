@@ -5,19 +5,18 @@ df_mod <- df_imputed |>
   select(
     outcome,
     breeze_brand,
-    crw_tnl_wpd,
-    ibacw_wpd,
-    fcw_wpd,
-    ecw_wpd,
-    sscw_wpd,
     lof_cpd,
+    ibacw_wpd,
+    sscw_wpd,
+    crw_tnl_wpd,
     lube_bays,
     repair_bays,
-    x2024_estimate_5_mi,
-    nearest_streetlight_day_part_aadt_5_mi
+    pop_2024,
+    traffic,
+    pop2shop
   ) |> 
   # filter(if_all(.cols = everything(), .fns = ~ !is.na(.x)))
-  filter(!is.na(x2024_estimate_5_mi) | !is.na(nearest_streetlight_day_part_aadt_5_mi) | nearest_streetlight_day_part_aadt_5_mi < 1)
+  filter(!is.na(pop_2024) | !is.na(traffic) | traffic < 1)
 
 # Inspect the result
 glimpse(df_mod)
