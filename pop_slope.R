@@ -1,6 +1,7 @@
 library(tidyverse)
 library(broom)
 library(janitor)
+library(readxl)
 
 # Load and clean data
 pop_slope_raw <- readxl::read_excel(
@@ -15,10 +16,15 @@ pop_slope_raw <- readxl::read_excel(
     pop_2024_1_mi:pop_2024_30_mi
   ) |> 
   select(where(~ any(!is.na(.)))) |> 
-  mutate(across(
-    .cols = pop_2024_1_mi:pop_2024_30_mi,
-    .fns = ~ round(.x, 0)
-  ))
+  mutate(
+    across(
+      .cols = pop_2024_1_mi:pop_2024_30_mi,
+      .fns = ~ round(.x, 0)
+    ),
+    label = paste(state, city, address, sep = " - ")
+  )
+
+# pop_slope_raw |> View()
 
 # Reshape data for slope calculation
 pop_slope_long <- pop_slope_raw |>
@@ -39,7 +45,7 @@ pop_slope_long <- pop_slope_raw |>
 
 # Calculate slopes for each store using linear regression
 slopes <- pop_slope_long |>
-  group_by(state, city, address) |>
+  group_by(state, city, address, label) |>
   nest() |>
   mutate(
     model = map(data, ~ lm(population ~ radius, data = .)),
@@ -47,7 +53,7 @@ slopes <- pop_slope_long |>
   ) |>
   unnest(tidied) |>
   filter(term == "radius") |>
-  select(state, city, address, slope = estimate)
+  select(state, city, address, label, slope = estimate)
 
 # Classify areas based on slope thresholds
 # These thresholds are illustrative; adjust based on domain knowledge
@@ -86,10 +92,10 @@ ggsave("slope_distribution.png", plot = slope_plot, width = 8, height = 6)
 
 # Visualize population curves for a sample of stores
 sample_data <- pop_slope_long |>
-  inner_join(slopes, by = c("state", "city", "address")) |>
-  filter(address %in% head(pop_slope_raw$address, 25)) # Top 5 stores for visualization
+  inner_join(slopes, by = c("state", "city", "address", "label")) |>
+  filter(label %in% head(pop_slope_raw$label, 30)) # Top 30 stores for visualization
 
-curve_plot <- ggplot(sample_data, aes(x = radius, y = population, color = address)) +
+curve_plot <- ggplot(sample_data, aes(x = radius, y = population, color = label)) +
   geom_line(linewidth = 1) +
   geom_point(size = 3) +
   facet_wrap(~area_type, scales = "free_y") +
@@ -97,13 +103,11 @@ curve_plot <- ggplot(sample_data, aes(x = radius, y = population, color = addres
     title = "Population vs. Radius by Area Type",
     x = "Radius (miles)",
     y = "Population",
-    color = "Address"
+    color = "Store Location"
   ) +
   theme_minimal()
 
-# Print the curve plot
-curve_plot
-
+curve_plot # View plot
 
 # Save the curve plot
 ggsave("population_curves.png", plot = curve_plot, width = 10, height = 6)
