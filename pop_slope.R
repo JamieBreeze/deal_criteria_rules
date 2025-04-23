@@ -2,6 +2,7 @@ library(tidyverse)
 library(broom)
 library(janitor)
 library(readxl)
+library(ggrepel)
 
 # Load and clean data
 pop_slope_raw <- readxl::read_excel(
@@ -21,10 +22,8 @@ pop_slope_raw <- readxl::read_excel(
       .cols = pop_2024_1_mi:pop_2024_30_mi,
       .fns = ~ round(.x, 0)
     ),
-    label = paste(state, city, address, sep = " - ")
+    label = city  # Use only city as the label for plotting
   )
-
-# pop_slope_raw |> View()
 
 # Reshape data for slope calculation
 pop_slope_long <- pop_slope_raw |>
@@ -55,14 +54,13 @@ slopes <- pop_slope_long |>
   filter(term == "radius") |>
   select(state, city, address, label, slope = estimate)
 
-# Classify areas based on slope thresholds
-# These thresholds are illustrative; adjust based on domain knowledge
+# Classify areas based on updated slope thresholds
 slopes <- slopes |>
   mutate(
     area_type = case_when(
-      slope > 100000 ~ "Urban",
-      slope > 10000 & slope <= 100000 ~ "Suburban",
-      slope <= 10000 ~ "Rural"
+      slope > 80000 ~ "Urban",
+      slope > 15000 & slope <= 80000 ~ "Suburban",
+      slope <= 15000 ~ "Rural"
     )
   )
 
@@ -87,30 +85,73 @@ slope_plot <- ggplot(slopes, aes(x = slope, fill = area_type)) +
   ) +
   theme_minimal()
 
-# Save the plot
+# Save the plot (fixed syntax)
 ggsave("slope_distribution.png", plot = slope_plot, width = 8, height = 6)
 
-# Visualize population curves for a sample of stores
+# First plot: Visualize population curves, faceted by area_type only
 sample_data <- pop_slope_long |>
   inner_join(slopes, by = c("state", "city", "address", "label")) |>
-  filter(label %in% head(pop_slope_raw$label, 30)) # Top 30 stores for visualization
+  filter(label %in% head(pop_slope_raw$label, 35)) # Top 35 stores for visualization
 
 curve_plot <- ggplot(sample_data, aes(x = radius, y = population, color = label)) +
-  geom_line(linewidth = 1) +
-  geom_point(size = 3) +
+  geom_line(linewidth = 0.8) +
+  geom_point(size = 2) +
+  # Add city labels at the end of each line (radius = 30)
+  geom_text_repel(
+    data = sample_data %>% filter(radius == 30),
+    aes(label = label),
+    size = 3,
+    nudge_x = 2,
+    direction = "y",
+    segment.size = 0.2,
+    show.legend = FALSE
+  ) +
   facet_wrap(~area_type, scales = "free_y") +
   labs(
     title = "Population vs. Radius by Area Type",
     x = "Radius (miles)",
-    y = "Population",
-    color = "Store Location"
+    y = "Population"
   ) +
-  theme_minimal()
+  theme_minimal() +
+  theme(
+    legend.position = "none"
+  )
 
 curve_plot # View plot
 
-# Save the curve plot
+# Save the first curve plot
 ggsave("population_curves.png", plot = curve_plot, width = 10, height = 6)
+
+# Second plot: Visualize population curves, faceted by area_type and state
+curve_plot_state <- ggplot(sample_data, aes(x = radius, y = population, color = label)) +
+  geom_line(linewidth = 0.8) +
+  geom_point(size = 2) +
+  # Add city labels at the end of each line (radius = 30)
+  geom_text_repel(
+    data = sample_data %>% filter(radius == 30),
+    aes(label = label),
+    size = 3,
+    nudge_x = 2,
+    direction = "y",
+    segment.size = 0.2,
+    show.legend = FALSE
+  ) +
+  facet_grid(area_type ~ state, scales = "free_y") +
+  labs(
+    title = "Population vs. Radius by Area Type and State",
+    x = "Radius (miles)",
+    y = "Population"
+  ) +
+  theme_minimal() +
+  theme(
+    legend.position = "none",
+    strip.text = element_text(size = 8)
+  )
+
+curve_plot_state # View plot
+
+# Save the second curve plot with increased width for more facets
+ggsave("population_curves_state.png", plot = curve_plot_state, width = 14, height = 8)
 
 # Save the slopes data
 write_csv(slopes, "pop_slope_results.csv")
