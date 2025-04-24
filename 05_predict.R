@@ -22,15 +22,27 @@ undernda <- tibble::tribble(
   "gC6L0PjsGOwCIoAFxmb8C3"
 )
 
-# Create location_undernda tibble
-location_undernda <- locations_processed |> 
-  # Filter for locations if opportunity_id is in undernda$OpportunityID
-  filter(opportunity_id %in% undernda$OpportunityID)
 
 # Select relevant columns for prediction ----
 location_undernda <- locations_processed |>
   select(all_of(mod_columns)) |>  # Use all_of() to ensure strict column matching
   # Filter for locations if opportunity_id is in undernda$OpportunityID
   filter(opportunity_id %in% undernda$OpportunityID) |> 
-  # Create pop2shop variable
-  mutate(pop2shop = pop_2024 / direct_chains) |> View()
+  # Impute missing data
+  mutate(
+    across(
+      .cols = c(
+        ends_with("_bays"),
+        contains("cpd"),
+        contains("wpd")
+      ),
+      .fns = ~ replace_na(.x, 0)
+    )
+  )
+
+location_undernda |> View()
+
+# Optionally save the result as CSV
+write_csv(location_undernda, file.path(data_dir, "location_undernda.csv"))
+# Optionally save the result as RDS
+write_rds(location_undernda, file.path(data_dir, "location_undernda.rds"))
