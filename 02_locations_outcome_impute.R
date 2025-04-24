@@ -19,3 +19,5 @@ df_imputed <- df_locs_outcomes |>
 glimpse(df_imputed)
 
 
+# Viewer
+df_imputed |> View()

@@ -6,8 +6,11 @@ library(rpart.plot)
 # Set seed for reproducibility
 set.seed(123)
 
-# Load data (assuming df_mod.csv is in the working directory)
+# Load data (assuming df_mod.rds is in the working directory)
+df_mod <- read_rds("data/df_mod.rds")
+
 # df_mod <- read_csv("df_mod.csv")
+# 
 
 # Define the decision tree model specification
 dt_spec <- decision_tree(
@@ -21,10 +24,27 @@ dt_spec <- decision_tree(
 # Create a workflow
 dt_workflow <- workflow() |>
   add_model(dt_spec) |>
-  add_formula(outcome ~ breeze_brand + lof_cpd +ibacw_wpd + sscw_wpd +
-                crw_tnl_wpd + 
-                lube_bays + repair_bays +
-                pop_2024 + traffic + pop2shop)
+  add_formula(
+    outcome ~
+      breeze_brand +
+      lof_cpd +
+      ibacw_wpd +
+      sscw_wpd +
+      crw_tnl_wpd +
+      lube_bays +
+      repair_bays +
+      pop_2024 +
+      traffic +
+      pop2shop +
+      income_discretionary_median +
+      transport_public +
+      pop_density +
+      hh_density +
+      hh_2024 +
+      vehicles_2024 +
+      income_public_assistance_prop +
+      income_retirement_prop
+  )
 
 # Define a grid for tuning
 dt_grid <- grid_regular(
@@ -68,6 +88,9 @@ final_dt_fit <- final_dt_workflow |>
 rpart_model <- final_dt_fit |> 
   extract_fit_engine()
 
+# Save model as RDS
+write_rds(rpart_model, file.path(data_dir, "rpart_model.rds"))
+
 # Enhanced visualization of the decision tree
 png("decision_tree_plot.png", width = 1200, height = 800, res = 100)
 rpart.plot(
@@ -87,7 +110,7 @@ rpart.plot(
   tweak = 1,        # Adjust text spacing
   branch = 0.1, # Adjust branch width
   ycompress = FALSE # Compress y-axis
-)
+  )
 dev.off()
 
 # Evaluate on test data with detailed metrics
@@ -137,5 +160,5 @@ cat("\nComplexity Parameter Table:\n")
 print(rpart_model$cptable)
 
 # Save the final model
-saveRDS(final_dt_fit, "decision_tree_model_enhanced.rds")
+write_rds(final_dt_fit, file.path(data_dir, "decision_tree_model_enhanced.rds"))
 

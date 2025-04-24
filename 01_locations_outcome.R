@@ -43,7 +43,26 @@ locations_processed <- locations_parent |>
          "pop_2029" = "col_2029_projection_5_mi",
          "direct_chains" = "count_of_chainxy_vt_oil_and_lube_5_mi",
          "indirect_chains" = "count_of_chainxy_vt_tires_and_auto_service_5_mi",
-         "oci" = "count_of_oil_changers_locations_vt_open_5_mi") |>   # Named element for renaming
+         "oci" = "count_of_oil_changers_locations_vt_open_5_mi",
+         "income_discretionary_median" = "median_discretionary_income_5_mi",
+         "transport_means_pop_ctv_5_mi" = "car_truck_or_van_5_mi_dupe1",
+         "transport_means_pop_tot_5_mi" = "total_pop16plus_workers_5_mi",
+         "pop_density" = "estimated_population_per_square_mile_5_mi",
+         "hh_density" = "estimated_households_per_square_mile_5_mi",
+         "hh_2024" = "current_year_estimated_occupied_housing_units_by_vehicles_available_5_mi",
+         "vehicles_hh_avg_2024" = "average_number_of_vehicles_available_5_mi",
+         "hh_public_assistance_count_5_mi" = "with_public_assistance_income_5_mi",
+         "hh_public_assistance_total_5_mi" = "total_hh_public_assist_5_mi",
+         "income_retirement_count_5_mi" = "with_retirement_income_5_mi",
+         "income_retirement_total_5_mi" = "total_hh_retire_inc_5_mi") |>
+  # Create public transport proportion
+  mutate(transport_public = (1 - (transport_means_pop_ctv_5_mi / transport_means_pop_tot_5_mi))) |> 
+  # Create income_retirement_prop proportion
+  mutate(income_public_assistance_prop = (1 - (hh_public_assistance_count_5_mi / hh_public_assistance_total_5_mi))) |> 
+  # Create income_retirement_prop proportion
+  mutate(income_retirement_prop = income_retirement_count_5_mi / income_retirement_total_5_mi) |>
+  # Create total vehicles
+  mutate(vehicles_2024 = vehicles_hh_avg_2024 * hh_2024) |>
   # Create pop2shop
   mutate(pop2shop = pop_2024 / direct_chains) |>
   # Calculate total_vpd as sum of columns ending in cpd or wpd
@@ -84,6 +103,7 @@ glimpse(locations_processed)
 # Optionally save the result as RDS
 # write_rds(locations_processed, file.path(data_dir, "locations_processed_2025-04-23.rds"))
 
+
 # Define column selector as a vector
 mod_columns <- c(
   "outcome",
@@ -103,7 +123,7 @@ mod_columns <- c(
   "opportunity_id",
   "sitewise_batch",
   "acq_stage",
-  "traffic2",
+  "traffic",
   "pop_2024",
   "pop_2029",
   "direct_chains",
@@ -113,7 +133,16 @@ mod_columns <- c(
   "city",
   "street_number",
   "city_state",
-  "zcta_code"
+  "zcta_code",
+  "pop2shop",
+  "income_discretionary_median",
+  "transport_public",
+  "pop_density",
+  "hh_density",
+  "hh_2024",
+  "vehicles_2024",
+  "income_public_assistance_prop",
+  "income_retirement_prop"
 )
 
 
