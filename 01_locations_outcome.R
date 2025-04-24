@@ -6,7 +6,7 @@ library(janitor)
 data_dir <- "data"
 
 # Read and clean locations_parent
-locations_parent <- read_csv(file.path(data_dir, "locations_parent_2025-04-16.csv")) |>
+locations_parent <- read_csv(file.path(data_dir, "locations_parent_2025-04-23.csv")) |>
   clean_names(case = "snake") |>
   mutate(
     location_id = as.character(location_id),
@@ -15,7 +15,7 @@ locations_parent <- read_csv(file.path(data_dir, "locations_parent_2025-04-16.cs
   )
 
 # Read and clean locations_details
-locations_details <- read_csv(file.path(data_dir, "locations_detail_2025-04-16.csv")) |>
+locations_details <- read_csv(file.path(data_dir, "locations_detail_2025-04-23.csv")) |>
   clean_names(case = "snake") |>
   mutate(
     location_id = as.character(location_id),
@@ -62,43 +62,41 @@ glimpse(locations_processed)
 # Optionally save the result
 # write_csv(locations_processed, file.path(data_dir, "locations_processed_2025-04-16.csv"))
 
+# Define column selector as a vector
+mod_columns <- c(
+  "outcome",
+  "location_id",
+  "location_city_name",
+  "breeze_brand",
+  "total_vpd",
+  "lube_bays",
+  "repair_bays",
+  "lof_cpd",
+  "sscw_wpd",
+  "ibacw_wpd",
+  "crw_tnl_wpd" = "crw_tnl_wpd_gs_lkup",  # Named element for renaming
+  "latitude_input_data",
+  "longitude_input_data",
+  "opportunity_name" = "opportunity_name.x",
+  "opportunity_id",
+  "sitewise_batch",
+  "acq_stage",
+  "traffic" = "nearest_streetlight_day_part_aadt_5_mi",
+  "pop_2024" = "col_2024_estimate_5_mi",
+  "pop_2029" = "col_2029_projection_5_mi",
+  "direct_chains" = "count_of_chainxy_vt_oil_and_lube_5_mi",
+  "indirect_chains" = "count_of_chainxy_vt_tires_and_auto_service_5_mi",
+  "oci" = "count_of_oil_changers_locations_vt_open_5_mi",
+  "state_abb",
+  "city",
+  "street_number",
+  "city_state",
+  "zcta_code"
+)
+
 # Select relevant columns for analysis ----
 df_locs_raw <- locations_processed |>
-  select(
-    outcome,
-    location_id,
-    location_city_name,
-    breeze_brand,
-    total_vpd,
-    lube_bays,
-    repair_bays,
-    lof_cpd,
-    sscw_wpd,
-    ibacw_wpd,
-    crw_tnl_wpd = crw_tnl_wpd_gs_lkup,
-    latitude_input_data,
-    longitude_input_data,
-    # number_miles_to_closest_oc_loc_sj,
-    # brand_sub_format,
-    opportunity_name = opportunity_name.x,
-    opportunity_id,
-    traffic,
-    sitewise_batch,
-    acq_stage,
-    # co_located_w_car_wash,
-    # co_located_w_repair,
-    traffic = nearest_streetlight_day_part_aadt_5_mi,
-    pop_2024 = col_2024_estimate_5_mi,
-    pop_2029 = col_2029_projection_5_mi,
-    direct_chains = count_of_chainxy_vt_oil_and_lube_5_mi,
-    indirect_chains = count_of_chainxy_vt_tires_and_auto_service_5_mi,
-    oci = count_of_oil_changers_locations_vt_open_5_mi,
-    state_abb,
-    city,
-    street_number,
-    city_state,
-    zcta_code
-  ) |> 
+  select(all_of(mod_columns)) |>  # Use all_of() to ensure strict column matching
   mutate(pop2shop = pop_2024 / direct_chains) |>
   filter(!is.na(outcome))
 
