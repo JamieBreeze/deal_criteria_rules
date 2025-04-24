@@ -36,6 +36,16 @@ locations_processed <- locations_parent |>
             by = c("location_id"),
             multiple = "first") |> 
   left_join(locations_details, by = "location_id") |>
+  # Rename
+  rename("crw_tnl_wpd" = "crw_tnl_wpd_gs_lkup",
+         "traffic2" = "nearest_streetlight_day_part_aadt_5_mi",
+         "pop_2024" = "col_2024_estimate_5_mi",
+         "pop_2029" = "col_2029_projection_5_mi",
+         "direct_chains" = "count_of_chainxy_vt_oil_and_lube_5_mi",
+         "indirect_chains" = "count_of_chainxy_vt_tires_and_auto_service_5_mi",
+         "oci" = "count_of_oil_changers_locations_vt_open_5_mi") |>   # Named element for renaming
+  # Create pop2shop
+  mutate(pop2shop = pop_2024 / direct_chains) |>
   # Calculate total_vpd as sum of columns ending in cpd or wpd
   mutate(
     total_vpd = rowSums(across(matches("cpd$|wpd$"), .fns = ~ replace(.x, is.na(.x), 0)), na.rm = TRUE)
@@ -54,13 +64,25 @@ locations_processed <- locations_parent |>
   ) |>
   relocate(outcome, .after = location_id) |> 
   mutate(outcome = as_factor(outcome)) 
-  
+
+# Wrangle some variables
+locations_processed <- locations_processed |> 
+  # Replace all NA for breeze_brand column to "OC"
+  mutate(breeze_brand = replace_na(breeze_brand, "OC")) |>
+  # Replace any elements for traffic column <2000 with 2000
+  mutate(traffic = ifelse(traffic < 2000, 2000, traffic)) |> 
+  # Filter out placeholder records that contain "fake"
+  filter(!str_detect(location_city_name, "Fake")) |> 
+  # If direct_chains is 0, then pop2shop is equal to pop_2024; round to integer
+  mutate(pop2shop = ifelse(direct_chains == 0, round(pop_2024), pop2shop))
 
 # Inspect the result
 glimpse(locations_processed)
 
 # Optionally save the result
-# write_csv(locations_processed, file.path(data_dir, "locations_processed_2025-04-16.csv"))
+# write_csv(locations_processed, file.path(data_dir, "locations_processed_2025-04-23.csv"))
+# Optionally save the result as RDS
+# write_rds(locations_processed, file.path(data_dir, "locations_processed_2025-04-23.rds"))
 
 # Define column selector as a vector
 mod_columns <- c(
@@ -74,19 +96,19 @@ mod_columns <- c(
   "lof_cpd",
   "sscw_wpd",
   "ibacw_wpd",
-  "crw_tnl_wpd" = "crw_tnl_wpd_gs_lkup",  # Named element for renaming
+  "crw_tnl_wpd",
   "latitude_input_data",
   "longitude_input_data",
   "opportunity_name" = "opportunity_name.x",
   "opportunity_id",
   "sitewise_batch",
   "acq_stage",
-  "traffic" = "nearest_streetlight_day_part_aadt_5_mi",
-  "pop_2024" = "col_2024_estimate_5_mi",
-  "pop_2029" = "col_2029_projection_5_mi",
-  "direct_chains" = "count_of_chainxy_vt_oil_and_lube_5_mi",
-  "indirect_chains" = "count_of_chainxy_vt_tires_and_auto_service_5_mi",
-  "oci" = "count_of_oil_changers_locations_vt_open_5_mi",
+  "traffic2",
+  "pop_2024",
+  "pop_2029",
+  "direct_chains",
+  "indirect_chains",
+  "oci",
   "state_abb",
   "city",
   "street_number",
@@ -94,24 +116,16 @@ mod_columns <- c(
   "zcta_code"
 )
 
+
 # Select relevant columns for analysis ----
-df_locs_raw <- locations_processed |>
+df_locs_outcomes <- locations_processed |>
   select(all_of(mod_columns)) |>  # Use all_of() to ensure strict column matching
-  mutate(pop2shop = pop_2024 / direct_chains) |>
   filter(!is.na(outcome))
 
-# Temporary data cleanup
-df_locs_raw <- df_locs_raw |> 
-  # Replace all NA for breeze_brand column to "OC"
-  mutate(breeze_brand = replace_na(breeze_brand, "OC")) |>
-  # Replace any elements for traffic column <2000 with 2000
-  mutate(traffic = ifelse(traffic < 2000, 2000, traffic)) |> 
-  # Filter out placeholder records that contain "fake"
-  filter(!str_detect(location_city_name, "Fake")) |> 
-  # If direct_chains is 0, then pop2shop is equal to pop_2024; round to integer
-  mutate(pop2shop = ifelse(direct_chains == 0, round(pop_2024), pop2shop))
 
 # Optionally save the result
-write_csv(df_locs_raw, file.path(data_dir, "df_locs_raw.csv"))
+write_csv(df_locs_outcomes, file.path(data_dir, "df_locs_outcomes.csv"))
+# Optionally save the result as RDS
+write_rds(df_locs_outcomes, file.path(data_dir, "df_locs_outcomes.rds"))
 
-df_locs_raw |> count(outcome)
+df_locs_outcomes |> count(outcome)
