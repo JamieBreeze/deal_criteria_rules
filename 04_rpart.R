@@ -7,10 +7,7 @@ library(rpart.plot)
 set.seed(123)
 
 # Load data (assuming df_mod.rds is in the working directory)
-df_mod <- read_rds("data/df_mod.rds")
-
-# df_mod <- read_csv("df_mod.csv")
-# 
+# df_mod <- read_rds("data/df_mod.rds") 
 
 # Define the decision tree model specification
 dt_spec <- decision_tree(
@@ -31,15 +28,15 @@ dt_workflow <- workflow() |>
       ibacw_wpd +
       sscw_wpd +
       crw_tnl_wpd +
-      lube_bays +
-      repair_bays +
+      # lube_bays +
+      # repair_bays +
       pop_2024 +
       traffic +
       pop2shop +
       income_discretionary_median +
       transport_public +
-      pop_density +
-      hh_density +
+      # pop_density +
+      # hh_density +
       hh_2024 +
       vehicles_2024 +
       income_public_assistance_prop +
@@ -89,19 +86,22 @@ rpart_model <- final_dt_fit |>
   extract_fit_engine()
 
 # Save model as RDS
-write_rds(rpart_model, file.path(data_dir, "rpart_model.rds"))
+write_rds(rpart_model, file.path("data/rpart_model.rds"))
+
+# Read model
+rpart_model <- read_rds(file.path("data/rpart_model.rds"))
 
 # Enhanced visualization of the decision tree
 png("decision_tree_plot.png", width = 1200, height = 800, res = 100)
 rpart.plot(
   rpart_model, 
   roundint = FALSE, 
-  clip.right.labs = FALSE, # Avoid clipping labels
+  clip.right.labs = TRUE, # Avoid clipping labels
   yesno = 2,       # Show yes/no labels
   under = TRUE,    # Place labels under the nodes
   type = 1,           # Show splits and probabilities
   extra = 100,       # Show probability of class and number of observations
-  cex = 0.7,         # Larger font size for readability
+  cex = 0.6,         # Larger font size for readability
   box.palette = list("Blues", "Reds"), # Color for pass/acquire
   branch.lty = 1,    # Solid branches
   shadow.col = "gray80",
@@ -109,6 +109,7 @@ rpart.plot(
   fallen.leaves = TRUE, # Place terminal nodes at the bottom
   tweak = 1,        # Adjust text spacing
   branch = 0.1, # Adjust branch width
+  nn = TRUE, # Show node numbers
   ycompress = FALSE # Compress y-axis
   )
 dev.off()
@@ -161,4 +162,5 @@ print(rpart_model$cptable)
 
 # Save the final model
 write_rds(final_dt_fit, file.path(data_dir, "decision_tree_model_enhanced.rds"))
+
 

@@ -1,20 +1,23 @@
+# Load libraries ----
 library(tidyverse)
 library(janitor)
+library(geosphere)
 
 # Read in all Locations tables ----
 # Define data directory
 data_dir <- "data"
 
-# Read and clean locations_parent
+## Read and clean locations_parent ----
 locations_parent <- read_csv(file.path(data_dir, "locations_parent_2025-04-23.csv")) |>
   clean_names(case = "snake") |>
   mutate(
     location_id = as.character(location_id),
     across(where(is.character), ~ na_if(.x, "")),
     across(where(is.numeric), ~ replace(.x, is.nan(.x) | is.infinite(.x), NA))
-  )
+  ) |> 
+  select(-traffic)
 
-# Read and clean locations_details
+## Read and clean locations_details ----
 locations_details <- read_csv(file.path(data_dir, "locations_detail_2025-04-23.csv")) |>
   clean_names(case = "snake") |>
   mutate(
@@ -25,12 +28,47 @@ locations_details <- read_csv(file.path(data_dir, "locations_detail_2025-04-23.c
   ) |> 
   rename(acq_stage = acq_stage_gs_lkup)
 
-# Read and clean locations_batch
+## Read and clean locations_batch ----
 locations_batch <- readRDS("~/Documents/GitHub/deal_criteria_rules/data/data_all_batches_combined_2025-04-21.rds") |>
   clean_names(case = "snake") |> 
-  rename(location_id = row_id)
+  rename(location_id = row_id,
+         traffic = nearest_streetlight_day_part_aadt_5_mi)
 
-# Left join to create locations tibble
+### Count indepdent locations within 5 miles ----
+# Convert latitude and longitude to numeric
+locations_batch <- locations_batch %>%
+  mutate(
+    latitude_na = as.numeric(latitude_na),
+    longitude_na = as.numeric(longitude_na)
+  )
+
+#####  Function to count locations within 5 miles of a given row, excluding those within 50 feet
+count_within_5_miles <- function(lat, lon, data) {
+  # Ensure data is a data frame
+  data <- as.data.frame(data)
+  # Create matrix of coordinates for all locations
+  coords <- cbind(data$longitude_na, data$latitude_na)
+  # Calculate distances to all other locations
+  distances <- distHaversine(
+    matrix(c(lon, lat), ncol = 2),
+    coords
+  )
+  # Count those within 5 miles (5 miles = 8046.72 meters) and more than 50 feet (15.24 meters) away
+  sum(distances <= (5 * 1609.344) & distances > 15.24)
+}
+
+##### Add new column with count of locations within 5 miles
+locations_batch <- locations_batch %>%
+  mutate(
+    count_indep_5_mi = pmap_int(
+      list(latitude_na, longitude_na),
+      ~ count_within_5_miles(..1, ..2, data = locations_batch)
+    )
+  ) %>%
+  # Relocate the new column after count_of_oil_changers_locations_vt_open_5_mi
+  relocate(count_indep_5_mi, .after = count_of_oil_changers_locations_vt_open_5_mi)
+
+# Left join to create locations tibble ----
 locations_processed <- locations_parent |>
   left_join(locations_batch, 
             by = c("location_id"),
@@ -38,7 +76,6 @@ locations_processed <- locations_parent |>
   left_join(locations_details, by = "location_id") |>
   # Rename
   rename("crw_tnl_wpd" = "crw_tnl_wpd_gs_lkup",
-         "traffic2" = "nearest_streetlight_day_part_aadt_5_mi",
          "pop_2024" = "col_2024_estimate_5_mi",
          "pop_2029" = "col_2029_projection_5_mi",
          "direct_chains" = "count_of_chainxy_vt_oil_and_lube_5_mi",
@@ -64,7 +101,7 @@ locations_processed <- locations_parent |>
   # Create total vehicles
   mutate(vehicles_2024 = vehicles_hh_avg_2024 * hh_2024) |>
   # Create pop2shop
-  mutate(pop2shop = pop_2024 / direct_chains) |>
+  mutate(pop2shop = pop_2024 / (direct_chains + count_indep_5_mi)) |>
   # Calculate total_vpd as sum of columns ending in cpd or wpd
   mutate(
     total_vpd = rowSums(across(matches("cpd$|wpd$"), .fns = ~ replace(.x, is.na(.x), 0)), na.rm = TRUE)
@@ -82,6 +119,7 @@ locations_processed <- locations_parent |>
     )
   ) |>
   relocate(outcome, .after = location_id) |> 
+  relocate(traffic, .after = zcta_code) |> 
   mutate(outcome = as_factor(outcome)) 
 
 # Wrangle some variables
@@ -99,12 +137,12 @@ locations_processed <- locations_processed |>
 glimpse(locations_processed)
 
 # Optionally save the result
-# write_csv(locations_processed, file.path(data_dir, "locations_processed_2025-04-23.csv"))
+write_csv(locations_processed, file.path(data_dir, "locations_processed_2025-04-23.csv"))
 # Optionally save the result as RDS
-# write_rds(locations_processed, file.path(data_dir, "locations_processed_2025-04-23.rds"))
+write_rds(locations_processed, file.path(data_dir, "locations_processed_2025-04-23.rds"))
 
 
-# Define column selector as a vector
+# Define column selector as a vector ----
 mod_columns <- c(
   "outcome",
   "location_id",
@@ -129,6 +167,7 @@ mod_columns <- c(
   "direct_chains",
   "indirect_chains",
   "oci",
+  "independents" = "count_indep_5_mi",
   "state_abb",
   "city",
   "street_number",
@@ -151,10 +190,26 @@ df_locs_outcomes <- locations_processed |>
   select(all_of(mod_columns)) |>  # Use all_of() to ensure strict column matching
   filter(!is.na(outcome))
 
+# QA ----
+# Count location_id that starts with #
+df_locs_outcomes |> 
+  filter(str_detect(location_id, "^#")) |> 
+  count(location_id) |> 
+  arrange(desc(n))
 
-# Optionally save the result
+# Check for duplicate coordinates
+duplicates <- locations_batch %>%
+  group_by(latitude_na, longitude_na) %>%
+  summarise(n = n()) %>%
+  filter(n > 1)
+print(duplicates)
+# View(duplicates)
+
+# Save the result ----
 write_csv(df_locs_outcomes, file.path(data_dir, "df_locs_outcomes.csv"))
-# Optionally save the result as RDS
+# Save the result as RDS
 write_rds(df_locs_outcomes, file.path(data_dir, "df_locs_outcomes.rds"))
+# Read the saved RDS
+# df_locs_outcomes <- read_rds(file.path(data_dir, "df_locs_outcomes.rds"))
 
 df_locs_outcomes |> count(outcome)

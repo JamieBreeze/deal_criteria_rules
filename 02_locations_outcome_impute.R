@@ -20,4 +20,11 @@ glimpse(df_imputed)
 
 
 # Viewer
-df_imputed |> View()
+# df_imputed |> View()
+
+# Save to CSV
+write_csv(df_imputed, file.path(data_dir, "df_imputed.csv"))
+# Save to RDS
+write_rds(df_imputed, file.path(data_dir, "df_imputed.rds"))
+# Read the saved RDS
+# df_imputed <- read_rds(file.path(data_dir, "df_imputed.rds"))
